@@ -1,0 +1,42 @@
+name: Build Atlas Pack
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    env:
+      ATLAS_DEPLOY_KEY: ${{ secrets.ATLAS_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Atlas CLI
+        run: |
+          ATLAS_HUB_URL="$(
+            awk -F= '
+              /^\[cli\]/ { in_cli=1; next }
+              in_cli && /^\[/ { in_cli=0 }
+              in_cli && $1 ~ /^[[:space:]]*hub_url[[:space:]]*$/ {
+                value=$2
+                gsub(/^[[:space:]]*"/, "", value)
+                gsub(/"[[:space:]]*$/, "", value)
+                print value
+                exit
+              }
+            ' atlas.toml
+          )"
+          ATLAS_HUB_URL="${ATLAS_HUB_URL:-https://atlas.nathanm.org}"
+          curl -fL "${ATLAS_HUB_URL}/download/cli/latest/linux/x64" -o atlas
+          sudo install -m 0755 atlas /usr/local/bin/atlas
+          atlas --version
+
+      - name: Deploy pack
+        run: |
+          atlas deploy --channel dev --commit-hash "${GITHUB_SHA}"
