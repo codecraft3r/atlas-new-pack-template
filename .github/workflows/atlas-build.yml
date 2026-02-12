@@ -46,12 +46,12 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${OIDC_TOKEN:-}" ]; then
-            atlas deploy \
+            atlas publish \
               --channel dev \
               --commit-hash "${GITHUB_SHA}" \
               --oidc-token "${OIDC_TOKEN}"
           elif [ -n "${ATLAS_PACK_DEPLOY_TOKEN:-}" ]; then
-            atlas deploy \
+            atlas publish \
               --channel dev \
               --commit-hash "${GITHUB_SHA}" \
               --deploy-token "${ATLAS_PACK_DEPLOY_TOKEN}"
