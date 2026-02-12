@@ -25,6 +25,7 @@ jobs:
 
       - name: Request GitHub OIDC token for Atlas
         id: oidc
+        continue-on-error: true
         run: |
           set -euo pipefail
           response="$(
@@ -33,17 +34,28 @@ jobs:
               "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=atlas-hub"
           )"
           token="$(echo "${response}" | jq -r '.value')"
-          if [ -z "${token}" ] || [ "${token}" = "null" ]; then
-            echo "Failed to retrieve OIDC token from GitHub."
-            exit 1
+          if [ -n "${token}" ] && [ "${token}" != "null" ]; then
+            echo "token=${token}" >> "${GITHUB_OUTPUT}"
           fi
-          echo "token=${token}" >> "${GITHUB_OUTPUT}"
 
       - name: Deploy pack
         env:
-          ATLAS_HUB_URL: https://atlas.nathanm.org
+          ATLAS_HUB_URL: ${{ secrets.ATLAS_HUB_URL }}
+          ATLAS_PACK_DEPLOY_TOKEN: ${{ secrets.ATLAS_PACK_DEPLOY_TOKEN }}
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
-          atlas deploy \
-            --channel dev \
-            --commit-hash "${GITHUB_SHA}" \
-            --oidc-token "${{ steps.oidc.outputs.token }}"
+          set -euo pipefail
+          if [ -n "${OIDC_TOKEN:-}" ]; then
+            atlas deploy \
+              --channel dev \
+              --commit-hash "${GITHUB_SHA}" \
+              --oidc-token "${OIDC_TOKEN}"
+          elif [ -n "${ATLAS_PACK_DEPLOY_TOKEN:-}" ]; then
+            atlas deploy \
+              --channel dev \
+              --commit-hash "${GITHUB_SHA}" \
+              --deploy-token "${ATLAS_PACK_DEPLOY_TOKEN}"
+          else
+            echo "No OIDC token and no ATLAS_PACK_DEPLOY_TOKEN secret available."
+            exit 1
+          fi
